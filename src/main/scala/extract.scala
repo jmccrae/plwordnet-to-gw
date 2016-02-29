@@ -3,11 +3,14 @@ import scala.xml._
 import org.apache.commons.lang3.StringEscapeUtils._
 
 object enWordNetExtract {
+  private final val plWordNetFile = "plWordNet-dev.xml.gz"
 
   def load_plwordnet(en : Boolean) = {
-    val root = XML.load(new java.util.zip.GZIPInputStream(new java.io.FileInputStream("plwordnet_2_3.xml.gz")))
+    val root = XML.load(new java.util.zip.GZIPInputStream(new java.io.FileInputStream(plWordNetFile)))
     val pwn_entries = (root \\ "lexical-unit").filter(x => en == (x \ "@pos").text.endsWith(" pwn")).map(
       x => (x \ "@id").text -> ((x \ "@name").text, (x \ "@pos").text)).toMap
+    val descriptions = (root \\ "lexical-unit").filter(x => en == (x \ "@pos").text.endsWith(" pwn")).map(
+      x => (x \ "@id").text -> (x \ "@desc").text).toMap
     val synsets = (root \\ "synset").filter(
       x => (x \ "unit-id").exists(n => pwn_entries contains n.text)).map(
       x => (x \ "@id").text -> ((x \ "unit-id").map(_.text), (x \ "@definition").text)).toMap
@@ -19,7 +22,7 @@ object enWordNetExtract {
       x => (synsets contains (x \ "@parent").text) && (synsets contains (x \ "@child").text)).map(
       x => ((x \ "@child").text, (x \ "@parent").text, (x \ "@relation").text)).
       groupBy(_._1).mapValues(_.map(x => (x._2, x._3)))
-     (pwn_entries, synsets, lexrelations, synrelations)
+     (pwn_entries, synsets, lexrelations, synrelations, descriptions)
   }
 
   def build_senses(synsets : Map[String, (Seq[String], String)]) : Map[String, Seq[String]] = {
@@ -171,6 +174,12 @@ object enWordNetExtract {
     case "242" => ""
     case "244" => ""
     case "3000" => "" // ???
+    case "3001" => "" // ???
+    case "3002" => "" // ???
+    case "3003" => "" // ???
+    case "3004" => "" // ???
+    case "3005" => "" // ???
+    case "3006" => "" // ???
     // Relations in both resources
     case "170" => "antonym"
     case "171" => "hyponym"
@@ -350,10 +359,268 @@ object enWordNetExtract {
     out.close
   }
 
+  sealed trait plWNDescription
+
+  private final val simpleDefinition = "D: (.*)\\.?\\s*".r
+  case class SimpleDefinition(text : String)
+
+  private final val category = "K: (.*)\\.?\\s*".r
+  case class Category(value : String)
+
+  private final val otherSource = "(\\w+): (.*)\\.?\\s*".r
+  case class OtherDefinition(source : String, text : String)
+
+  private final val link = "L:\\s*(.*)\\.?\\s*".r
+  case class Link(to : String)
+
+  private final val ref = "<##REF\\d?:? ?(.*)>".r
+  case class Ref(to : String)
+
+  private final val emotion  ="A([123]):? ?(0|\\{\\s*([\\p{IsAlphabetic}, ]*)\\s*;\\s*([\\p{IsAlphabetic}, ]*)\\s*\\}\\s*(amb|0|\\+\\s*m|\\-\\s*m|\\+\\s*s|\\-\\s*s)\\s*\\[(.*)\\]\\s*)\\.?\\s*".r
+  case class Emotion(annoNumber : Int,
+    primary : Seq[EmotionValue], universal : Seq[EmotionValue],
+    sentiment : Sentiment, example : String)
+
+  sealed trait Sentiment
+  object NoSent extends Sentiment
+  object WeakPos extends Sentiment
+  object StrongPos extends Sentiment
+  object WeakNeg extends Sentiment
+  object StrongNeg extends Sentiment
+  object Ambivalent extends Sentiment
+  object Sentiment {
+    def fromString(s : String) = s match {
+      case "0" => NoSent
+      case "amb" => Ambivalent
+      case "+m" => StrongPos
+      case "+ m" => StrongPos
+      case "-m" => StrongNeg
+      case "- m" => StrongNeg
+      case "+s" => WeakPos
+      case "+ s" => WeakPos
+      case "-s" => WeakNeg
+      case "- s" => WeakNeg
+      case x =>
+        System.err.println("Sentiment" + x)
+        NoSent
+    }
+  }
+
+  sealed trait EmotionValue
+  sealed class PlutchikEmotion(wnId : String) extends EmotionValue
+  sealed trait UniversalEmotion extends EmotionValue
+  object EmotionValue {
+    object anticipation extends PlutchikEmotion("wn31-07526319-n")
+    object joy extends PlutchikEmotion("wn31-07542591-n")
+    object trust extends PlutchikEmotion("wn31-13952885-n")
+    object fear extends PlutchikEmotion("wn31-07534492-n")
+    object surprise extends PlutchikEmotion("wn31-07525587-n")
+    object sadness extends PlutchikEmotion("wn31-07547828-n")
+    object disgust extends PlutchikEmotion("wn31-07518499-n")
+    object anger extends PlutchikEmotion("wn31-07531593-n")
+    object beauty extends UniversalEmotion
+    object ugliness extends UniversalEmotion
+    object utility extends UniversalEmotion
+    object uselessness extends UniversalEmotion
+    object error extends UniversalEmotion
+    object truth extends UniversalEmotion
+    object wrong extends UniversalEmotion
+    object goodness extends UniversalEmotion
+    object ignorance extends UniversalEmotion
+    object knowledge extends UniversalEmotion
+    object happiness extends UniversalEmotion
+    object unhappiness extends UniversalEmotion
+
+    def fromPolish(s : String) : Seq[EmotionValue] = s.trim() match {
+      // Universal
+      case "bezużyteczność" => Seq(uselessness)
+      case "bląd" => Seq(error)
+      case "brzydota" => Seq(ugliness)
+      case "brzygota" => Seq(ugliness)
+      case "brzytoda" => Seq(ugliness)
+      case "bład" => Seq(error)
+      case "błąd" => Seq(error)
+      case "dobro drugiego człowieka" => Seq(goodness)
+      case "dobro drugiego" => Seq(goodness)
+      case "dobro" => Seq(goodness)
+      case "krzwda" => Seq(wrong)
+      case "krzyada" => Seq(wrong)
+      case "krzywda błąd" => Seq(wrong, error)
+      case "krzywda" => Seq(wrong)
+      case "niedzczęście" => Seq(sadness)
+      case "nieiwedza" => Seq(ignorance)
+      case "nieszczeście" => Seq(unhappiness)
+      case "nieszczęscie" => Seq(unhappiness)
+      case "nieszczęście" => Seq(unhappiness)
+      case "nieszczęśćie" => Seq(unhappiness)
+      case "nieurzyteczność" => Seq(uselessness)
+      case "nieuzyteczność" => Seq(uselessness)
+      case "nieużytecznosć" => Seq(uselessness)
+      case "nieużytecznośc" => Seq(uselessness)
+      case "nieużyteczność" => Seq(uselessness)
+      case "niewiedza" => Seq(ignorance)
+      case "nieżuyteczność" => Seq(uselessness)
+      case "nieżyteczność" => Seq(uselessness)
+      case "niużyteczność" => Seq(uselessness)
+      case "piekno" => Seq(beauty)
+      case "piękno" => Seq(beauty)
+      case "prawda" => Seq(truth)
+      //case "radość" => Seq(joy)
+      //case "smutek" => Seq(sadness)
+      case "sz częście" => Seq(joy)
+      case "szczeście" => Seq(joy)
+      //case "szczęscie" => Seq(joy)
+      //case "szczęści" => Seq(joy)
+      case "szczęście użyteczność" => Seq(joy, utility)
+      //case "szczęście" => Seq(joy)
+      case "szczęśćie" => Seq(joy)
+      case "uzyteczność" => Seq(utility)
+      case "użuyteczność" => Seq(utility)
+      case "użytecznosć" => Seq(utility)
+      case "użytecznośc" => Seq(utility)
+      case "użyteczność dobro" => Seq(goodness, utility)
+      case "użyteczność szczęście" => Seq(utility, happiness)
+      case "użyteczność wiedza" => Seq(utility, knowledge)
+      case "użyteczność" => Seq(utility)
+      case "wiedza" => Seq(knowledge)
+      //case "wstręt" => Seq(disgust)
+      //case "złość" => Seq(anger)
+      // Primary
+      case "cieszenie sie na" => Seq(anticipation)
+      case "cieszenie sie" => Seq(anticipation)
+      case "cieszenie się na" => Seq(anticipation)
+      case "cieszenie się" => Seq(anticipation)
+      case "ciesznie się na" => Seq(anticipation)
+      case "gniew" => Seq(anger)
+      //case "krzywda" => Seq(wrong)
+      case "oczekiwanie na" => Seq(anticipation)
+      case "radosć" => Seq(joy)
+      case "radoć" => Seq(joy)
+      case "radośc" => Seq(joy)
+      case "radość" => Seq(joy)
+      case "s mutek" => Seq(sadness)
+      case "smitek" => Seq(sadness)
+      case "smute" => Seq(sadness)
+      case "smutek" => Seq(sadness)
+      case "strach wstręt" => Seq(fear, disgust)
+      case "strach" => Seq(fear)
+      case "szczęście" => Seq(happiness)
+      //case "użyteczność" => Seq(utility)
+      case "wstret" => Seq(disgust)
+      case "wstrę" => Seq(disgust)
+      case "wstręt" => Seq(disgust)
+      case "wstęt" => Seq(disgust)
+      case "zaskoczenie" => Seq(surprise)
+      case "zaufanie złość" => Seq(trust, anger)
+      case "zaufanie" => Seq(trust)
+      case "zlość" => Seq(anger)
+      case "zufanie" => Seq(trust)
+      case "złosć" => Seq(anger)
+      case "złośc" => Seq(anger)
+      case "złość" => Seq(anger)
+      case _ =>
+        System.err.println("Unrecognized emotion: " + s)
+        Nil
+    }
+  }
+
+
+  case class Error(test : String)
+
+  def parseDescription(desc : String) = {
+    def ri(i : Int) = if(i < 0) { Int.MaxValue -100} else { i }
+    def elems(d : String) : List[String] = {
+      val i1 = ri(d.indexOf("##"))
+      val i2 = ri(d.indexOf("[##"))
+      val i3 = ri(d.indexOf("{##"))
+      val i4 = ri(d.indexOf("<"))
+      if(i1 < i2 && i1 < i3 && i1 < i4 && i1 != Int.MaxValue) {
+        if(i1 == 0) {
+          elems(d.drop(2))
+        } else {
+          d.take(i1) :: elems(d.drop(i1 + 2))
+        }
+      } else if(i2 < i1 && i2 < i3 && i2 < i4 && i2 != Int.MaxValue) {
+        val i = ri(d.indexOf("]", i2))
+        if(i2 != 0) {
+          d.take(i2) :: d.slice(i2+3,i) :: elems(d.drop(i+1))
+        } else {
+          d.slice(i2+3,i) :: elems(d.drop(i+1))
+        }
+      } else if(i3 < i1 && i3 < i2 && i3 < i4 && i3 != Int.MaxValue) {
+        val i = ri(d.indexOf("}", i3))
+        assert(i > i3)
+        if(i3 != 0) {
+          d.take(i3) :: d.slice(i3+3,i) :: elems(d.drop(i+1))
+        } else {
+          d.slice(i3+3,i) :: elems(d.drop(i+1))
+        }
+      } else if(i4 < i1 && i4 < i2 && i4 < i3 && i4 != Int.MaxValue) {
+        val i = ri(d.indexOf(">", i4))
+        if(i4 != 0) {
+          d.take(i4) :: d.slice(i4,i+1) :: elems(d.drop(i+1))
+        } else {
+          d.slice(i4,i+1) :: elems(d.drop(i+1))
+        }
+      } else if(d matches "\\s*") {
+        Nil
+      } else {
+        d :: Nil
+      }
+    }
+    if(desc contains "##") {
+      for(section <- elems(desc)) yield {
+        section match {
+          case simpleDefinition(text) =>
+            Some(SimpleDefinition(text))
+          case category(value) =>
+            Some(Category(value))
+          case link(to) =>
+            Some(Link(to))
+          case emotion(an, v, pes, ues, sent, ex) =>
+            if(v == "0") {
+              None
+            } else {
+              Some(Emotion(an.toInt, 
+                pes.split(",\\s*").flatMap(EmotionValue.fromPolish), 
+                ues.split(",\\s*").flatMap(EmotionValue.fromPolish), 
+                Sentiment.fromString(sent), ex))
+            }
+          case ref(to) =>
+            Some(Ref(to))
+          case otherSource(source, text) =>
+            Some(OtherDefinition(source, text))
+          case "<##s>" => None //- compositional word combination
+          case "<##aDD>" => None // - multi-word lexical unit -- convrt to <##DD>
+          case "<##as1DD>" => None // - multi-word lexical unit exhibiting syntactic nonseparability
+          case "<##as2DD>" => None // - multi-word lexical unit exhibiting fixed word order
+          case "<##nDD>" => None // - compositional word combination
+          case "<##DD>" => None //  ??
+          case "<##DS>" => None //  ??
+          case "<##sDD>" => None //  ??
+          case "brak danych" => None // no data!
+          case x => 
+            if(!(x contains ":") && !(x contains "##") && !x.matches("\\s*")) {
+              Some(SimpleDefinition(x))
+            } else {
+              if(!x.matches("\\s*")) {
+                System.err.println("Not recognized:"  + x)
+              }
+              None
+            }
+        }
+      }
+    } else {
+      Seq(Some(SimpleDefinition(desc)))
+    }
+  }
   def main(args : Array[String]) {
     {
       System.err.println("Extracting enWordNet")
-      val (entries, synsets, lexrelations, synrelations) = load_plwordnet(true)
+      val (entries, synsets, lexrelations, synrelations, descriptions) = load_plwordnet(true)
+      for(desc <- descriptions.values) {
+        parseDescription(desc)
+      }
       val (pwn_entries, pwn_defns, ili) = load_pwn
 
       val senses = build_senses(synsets)
@@ -365,7 +632,10 @@ object enWordNetExtract {
     }
     {
       System.err.println("Extracting plWordNet")
-      val (entries, synsets, lexrelations, synrelations) = load_plwordnet(false)
+      val (entries, synsets, lexrelations, synrelations, descriptions) = load_plwordnet(false)
+      for(desc <- descriptions.values) {
+        val p = parseDescription(desc)
+      }
 
       val senses = build_senses(synsets)
 
