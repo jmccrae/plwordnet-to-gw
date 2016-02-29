@@ -422,48 +422,48 @@ object enWordNetExtract {
     object beauty extends UniversalEmotion
     object ugliness extends UniversalEmotion
     object utility extends UniversalEmotion
-    object uselessness extends UniversalEmotion
+    object futility extends UniversalEmotion
     object error extends UniversalEmotion
     object truth extends UniversalEmotion
-    object wrong extends UniversalEmotion
-    object goodness extends UniversalEmotion
+    object harm extends UniversalEmotion
+    object anothers_good extends UniversalEmotion
     object ignorance extends UniversalEmotion
     object knowledge extends UniversalEmotion
     object happiness extends UniversalEmotion
-    object unhappiness extends UniversalEmotion
+    object misfortune extends UniversalEmotion
 
     def fromPolish(s : String) : Seq[EmotionValue] = s.trim() match {
       // Universal
-      case "bezużyteczność" => Seq(uselessness)
+      case "bezużyteczność" => Seq(futility)
       case "bląd" => Seq(error)
       case "brzydota" => Seq(ugliness)
       case "brzygota" => Seq(ugliness)
       case "brzytoda" => Seq(ugliness)
       case "bład" => Seq(error)
       case "błąd" => Seq(error)
-      case "dobro drugiego człowieka" => Seq(goodness)
-      case "dobro drugiego" => Seq(goodness)
-      case "dobro" => Seq(goodness)
-      case "krzwda" => Seq(wrong)
-      case "krzyada" => Seq(wrong)
-      case "krzywda błąd" => Seq(wrong, error)
-      case "krzywda" => Seq(wrong)
+      case "dobro drugiego człowieka" => Seq(anothers_good)
+      case "dobro drugiego" => Seq(anothers_good)
+      case "dobro" => Seq(anothers_good)
+      case "krzwda" => Seq(harm)
+      case "krzyada" => Seq(harm)
+      case "krzywda błąd" => Seq(harm, error)
+      case "krzywda" => Seq(harm)
       case "niedzczęście" => Seq(sadness)
       case "nieiwedza" => Seq(ignorance)
-      case "nieszczeście" => Seq(unhappiness)
-      case "nieszczęscie" => Seq(unhappiness)
-      case "nieszczęście" => Seq(unhappiness)
-      case "nieszczęśćie" => Seq(unhappiness)
-      case "nieurzyteczność" => Seq(uselessness)
-      case "nieuzyteczność" => Seq(uselessness)
-      case "nieużytecznosć" => Seq(uselessness)
-      case "nieużytecznośc" => Seq(uselessness)
-      case "nieużyteczność" => Seq(uselessness)
-      case "nieużyteczność krzywda" => Seq(uselessness, wrong)
+      case "nieszczeście" => Seq(misfortune)
+      case "nieszczęscie" => Seq(misfortune)
+      case "nieszczęście" => Seq(misfortune)
+      case "nieszczęśćie" => Seq(misfortune)
+      case "nieurzyteczność" => Seq(futility)
+      case "nieuzyteczność" => Seq(futility)
+      case "nieużytecznosć" => Seq(futility)
+      case "nieużytecznośc" => Seq(futility)
+      case "nieużyteczność" => Seq(futility)
+      case "nieużyteczność krzywda" => Seq(futility, harm)
       case "niewiedza" => Seq(ignorance)
-      case "nieżuyteczność" => Seq(uselessness)
-      case "nieżyteczność" => Seq(uselessness)
-      case "niużyteczność" => Seq(uselessness)
+      case "nieżuyteczność" => Seq(futility)
+      case "nieżyteczność" => Seq(futility)
+      case "niużyteczność" => Seq(futility)
       case "piekno" => Seq(beauty)
       case "piękno" => Seq(beauty)
       case "prawda" => Seq(truth)
@@ -477,7 +477,7 @@ object enWordNetExtract {
       case "użuyteczność" => Seq(utility)
       case "użytecznosć" => Seq(utility)
       case "użytecznośc" => Seq(utility)
-      case "użyteczność dobro" => Seq(goodness, utility)
+      case "użyteczność dobro" => Seq(anothers_good, utility)
       case "użyteczność szczęście" => Seq(utility, happiness)
       case "użyteczność wiedza" => Seq(utility, knowledge)
       case "użyteczność" => Seq(utility)
