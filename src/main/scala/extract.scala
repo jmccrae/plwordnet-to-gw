@@ -361,25 +361,25 @@ object enWordNetExtract {
 
   sealed trait plWNDescription
 
-  private final val simpleDefinition = "D: (.*)\\.?\\s*".r
+  private final val simpleDefinition = "##D:? ?(.*)\\.?\\s*".r
   case class SimpleDefinition(text : String)
 
-  private final val category = "K: (.*)\\.?\\s*".r
+  private final val category = "##K:? ?(.*)\\.?\\s*".r
   case class Category(value : String)
 
-  private final val otherSource = "(\\w+): (.*)\\.?\\s*".r
+  private final val otherSource = "##([\\p{IsAlphabetic}-]+): (.*)\\.?\\s*".r
   case class OtherDefinition(source : String, text : String)
 
-  private final val link = "L:\\s*(.*)\\.?\\s*".r
+  private final val link = "##L:?\\s*(.*)\\.?\\s*".r
   case class Link(to : String)
 
   private final val ref = "<##REF\\d?:? ?(.*)>".r
   case class Ref(to : String)
 
-  private final val emotion  ="A([123]):? ?(0|\\{\\s*([\\p{IsAlphabetic}, ]*)\\s*;\\s*([\\p{IsAlphabetic}, ]*)\\s*\\}\\s*(amb|0|\\+\\s*m|\\-\\s*m|\\+\\s*s|\\-\\s*s)\\s*\\[(.*)\\]\\s*)\\.?\\s*".r
+  private final val emotion  ="##A([123]):? ?(0|\\{\\s*([\\p{IsAlphabetic}, \\-]*)\\s*(;\\s*([\\p{IsAlphabetic}, \\-]*))?\\s*\\}\\s*(amb|0|\\+\\s*m|\\-\\s*m|\\+\\s*s|\\-\\s*s)?\\s*((\\[.*\\]\\s*)*)\\s*)\\.?\\s*".r
   case class Emotion(annoNumber : Int,
     primary : Seq[EmotionValue], universal : Seq[EmotionValue],
-    sentiment : Sentiment, example : String)
+    sentiment : Sentiment, example : Seq[String])
 
   sealed trait Sentiment
   object NoSent extends Sentiment
@@ -467,14 +467,10 @@ object enWordNetExtract {
       case "piekno" => Seq(beauty)
       case "piękno" => Seq(beauty)
       case "prawda" => Seq(truth)
-      //case "radość" => Seq(joy)
-      //case "smutek" => Seq(sadness)
       case "sz częście" => Seq(happiness)
       case "szczeście" => Seq(happiness)
-      //case "szczęscie" => Seq(happiness)
       case "szczęści" => Seq(happiness)
       case "szczęście użyteczność" => Seq(happiness, utility)
-      //case "szczęście" => Seq(happiness)
       case "szczęśćie" => Seq(happiness)
       case "szczęscie" => Seq(happiness)
       case "uzyteczność" => Seq(utility)
@@ -486,8 +482,6 @@ object enWordNetExtract {
       case "użyteczność wiedza" => Seq(utility, knowledge)
       case "użyteczność" => Seq(utility)
       case "wiedza" => Seq(knowledge)
-      //case "wstręt" => Seq(disgust)
-      //case "złość" => Seq(anger)
       // Primary
       case "cieszenie sie na" => Seq(anticipation)
       case "cieszenie sie" => Seq(anticipation)
@@ -495,7 +489,6 @@ object enWordNetExtract {
       case "cieszenie się" => Seq(anticipation)
       case "ciesznie się na" => Seq(anticipation)
       case "gniew" => Seq(anger)
-      //case "krzywda" => Seq(wrong)
       case "oczekiwanie na" => Seq(anticipation)
       case "radosć" => Seq(joy)
       case "radoć" => Seq(joy)
@@ -508,7 +501,6 @@ object enWordNetExtract {
       case "strach wstręt" => Seq(fear, disgust)
       case "strach" => Seq(fear)
       case "szczęście" => Seq(happiness)
-      //case "użyteczność" => Seq(utility)
       case "wstret" => Seq(disgust)
       case "wstrę" => Seq(disgust)
       case "wstręt" => Seq(disgust)
@@ -523,6 +515,7 @@ object enWordNetExtract {
       case "złość" => Seq(anger)
       case "złóść" => Seq(anger)
       case "złość wstręt" => Seq(anger, disgust)
+      case "-" => Nil
       case "" => Nil
       case _ =>
         System.err.println("Unrecognized emotion: " + s)
@@ -542,27 +535,29 @@ object enWordNetExtract {
       val i1 = ri(d.indexOf("##"))
       val i2 = ri(d.indexOf("[##"))
       val i3 = ri(d.indexOf("{##"))
-      val i4 = ri(d.indexOf("<"))
+      val i4 = ri(d.indexOf("<##"))
       if(i1 < i2 && i1 < i3 && i1 < i4 && i1 != Int.MaxValue) {
         if(i1 == 0) {
-          elems(d.drop(2))
+          val j1 = ri(d.indexOf("##", 2))
+          val j = math.min(math.min(j1, i2), math.min(i3, i4))
+          d.take(j) :: elems(d.drop(j))
         } else {
-          d.take(i1) :: elems(d.drop(i1 + 2))
+          d.take(i1) :: elems(d.drop(i1))
         }
       } else if(i2 < i1 && i2 < i3 && i2 < i4 && i2 != Int.MaxValue) {
         val i = ri(d.indexOf("]", i2))
         if(i2 != 0) {
-          d.take(i2) :: d.slice(i2+3,i) :: elems(d.drop(i+1))
+          d.take(i2) :: d.slice(i2+1,i) :: elems(d.drop(i+1))
         } else {
-          d.slice(i2+3,i) :: elems(d.drop(i+1))
+          d.slice(i2+1,i) :: elems(d.drop(i+1))
         }
       } else if(i3 < i1 && i3 < i2 && i3 < i4 && i3 != Int.MaxValue) {
         val i = ri(d.indexOf("}", i3))
         assert(i > i3)
         if(i3 != 0) {
-          d.take(i3) :: d.slice(i3+3,i) :: elems(d.drop(i+1))
+          d.take(i3) :: d.slice(i3+1,i) :: elems(d.drop(i+1))
         } else {
-          d.slice(i3+3,i) :: elems(d.drop(i+1))
+          d.slice(i3+1,i) :: elems(d.drop(i+1))
         }
       } else if(i4 < i1 && i4 < i2 && i4 < i3 && i4 != Int.MaxValue) {
         val i = ri(d.indexOf(">", i4))
@@ -587,14 +582,17 @@ object enWordNetExtract {
             Some(Category(value))
           case link(to) =>
             Some(Link(to))
-          case emotion(an, v, pes, ues, sent, ex) =>
+          case emotion(an, v, pes, _, ues, sent, ex, _) =>
             if(v == "0") {
               None
             } else {
               Some(Emotion(an.toInt, 
                 pes.split(",\\s*").flatMap(EmotionValue.fromPolish), 
-                ues.split(",\\s*").flatMap(EmotionValue.fromPolish), 
-                Sentiment.fromString(sent), ex))
+                Option(ues).getOrElse("").split(",\\s*").
+                  flatMap(EmotionValue.fromPolish), 
+
+                Option(sent).map(Sentiment.fromString).getOrElse(NoSent), 
+                ex.trim().drop(1).dropRight(1).split("\\] \\[").map(_.trim())))
             }
           case ref(to) =>
             Some(Ref(to))
@@ -610,12 +608,12 @@ object enWordNetExtract {
           case "<##sDD>" => None //  ??
           case "brak danych" => None // no data!
           case x => 
-            if(!(x contains ":") && !(x contains "##") && !x.matches("\\s*")) {
+            if(!(x contains "##") && !x.matches("\\s*")) {
               Some(SimpleDefinition(x))
             } else {
               if(!x.matches("\\s*")) {
                 if(!hasError) {
-                  recognitionErrors.println(desc)
+                  recognitionErrors.println(x.replaceAll("\n","\\\\n").replaceAll("\r", "\\\\r"))
                   hasError = true
                   errorCount += 1
                 }
