@@ -396,6 +396,7 @@ object enWordNetExtract {
       case "+ m" => StrongPos
       case "-m" => StrongNeg
       case "- m" => StrongNeg
+      case "-  m" => StrongNeg
       case "+s" => WeakPos
       case "+ s" => WeakPos
       case "-s" => WeakNeg
@@ -407,7 +408,7 @@ object enWordNetExtract {
   }
 
   sealed trait EmotionValue
-  sealed class PlutchikEmotion(wnId : String) extends EmotionValue
+  sealed class PlutchikEmotion(val wnId : String) extends EmotionValue
   sealed trait UniversalEmotion extends EmotionValue
   object EmotionValue {
     object anticipation extends PlutchikEmotion("wn31-07526319-n")
@@ -458,6 +459,7 @@ object enWordNetExtract {
       case "nieużytecznosć" => Seq(uselessness)
       case "nieużytecznośc" => Seq(uselessness)
       case "nieużyteczność" => Seq(uselessness)
+      case "nieużyteczność krzywda" => Seq(uselessness, wrong)
       case "niewiedza" => Seq(ignorance)
       case "nieżuyteczność" => Seq(uselessness)
       case "nieżyteczność" => Seq(uselessness)
@@ -467,13 +469,14 @@ object enWordNetExtract {
       case "prawda" => Seq(truth)
       //case "radość" => Seq(joy)
       //case "smutek" => Seq(sadness)
-      case "sz częście" => Seq(joy)
-      case "szczeście" => Seq(joy)
-      //case "szczęscie" => Seq(joy)
-      //case "szczęści" => Seq(joy)
-      case "szczęście użyteczność" => Seq(joy, utility)
-      //case "szczęście" => Seq(joy)
-      case "szczęśćie" => Seq(joy)
+      case "sz częście" => Seq(happiness)
+      case "szczeście" => Seq(happiness)
+      //case "szczęscie" => Seq(happiness)
+      case "szczęści" => Seq(happiness)
+      case "szczęście użyteczność" => Seq(happiness, utility)
+      //case "szczęście" => Seq(happiness)
+      case "szczęśćie" => Seq(happiness)
+      case "szczęscie" => Seq(happiness)
       case "uzyteczność" => Seq(utility)
       case "użuyteczność" => Seq(utility)
       case "użytecznosć" => Seq(utility)
@@ -518,6 +521,9 @@ object enWordNetExtract {
       case "złosć" => Seq(anger)
       case "złośc" => Seq(anger)
       case "złość" => Seq(anger)
+      case "złóść" => Seq(anger)
+      case "złość wstręt" => Seq(anger, disgust)
+      case "" => Nil
       case _ =>
         System.err.println("Unrecognized emotion: " + s)
         Nil
@@ -526,6 +532,9 @@ object enWordNetExtract {
 
 
   case class Error(test : String)
+
+  val recognitionErrors = new java.io.PrintWriter("desc-errors.txt")
+  var errorCount = 0
 
   def parseDescription(desc : String) = {
     def ri(i : Int) = if(i < 0) { Int.MaxValue -100} else { i }
@@ -569,6 +578,7 @@ object enWordNetExtract {
       }
     }
     if(desc contains "##") {
+      var hasError = false
       for(section <- elems(desc)) yield {
         section match {
           case simpleDefinition(text) =>
@@ -604,7 +614,11 @@ object enWordNetExtract {
               Some(SimpleDefinition(x))
             } else {
               if(!x.matches("\\s*")) {
-                System.err.println("Not recognized:"  + x)
+                if(!hasError) {
+                  recognitionErrors.println(desc)
+                  hasError = true
+                  errorCount += 1
+                }
               }
               None
             }
@@ -636,6 +650,8 @@ object enWordNetExtract {
       for(desc <- descriptions.values) {
         val p = parseDescription(desc)
       }
+      System.err.println("Error Count: %d" format (errorCount))
+      recognitionErrors.flush()
 
       val senses = build_senses(synsets)
 
